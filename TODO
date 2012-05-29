@@ -1,0 +1,4 @@
+19-10-2011
+	* code commenting
+	* adding JUnit tests
+	* adding git support for ant building script

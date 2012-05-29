@@ -1,0 +1,186 @@
+<project name="Gossip Learning Framework" default="dist" basedir=".">
+  <description>
+    Build file of Gossip Learning Framework project. 
+  </description>
+  
+  <!-- set global properties for this build -->
+  <property name="bin"  location="bin"/>
+  <property name="doc" location="doc"/>
+  <property name="apidoc" location="doc/api"/>
+  <property name="reports" location="doc/reports"/>
+  <property name="build" location="build"/>
+  <property name="config" location="config"/>
+  <property name="dist" location="dist"/>
+  <property name="lib"  location="lib"/>
+  <property name="src" location="src"/>
+  <property name="res" location="res"/>
+  
+  <property name="projectName" value="GossipLearningFramework"/>
+  <property name="jarName" value="gossipLearning.jar"/>
+  
+  <!-- Environment property must be set for using environment variables -->
+  <property environment="env"/>
+  
+  <!--Remote run properites -->
+  <property name="remoteRunDir" value="~/gossipLearning"/>
+  <property name="remoteRunScript" value="run.sh"/>
+  <property name="remoteRunHost" value="rgai"/>
+  <property name="sshKeyFile" value="${env.HOME}/.ssh/id_rsa"/>
+   
+  
+  <target name="init">
+    <!-- Initialize -->
+    <mkdir dir="${bin}"/>
+    <mkdir dir="${build}"/>
+    <mkdir dir="${doc}"/>
+    <mkdir dir="${apidoc}"/>
+    <mkdir dir="${reports}"/>
+    <mkdir dir="${reports}/raw/"/>
+    <mkdir dir="${reports}/html/"/>
+  </target>
+
+  <target name="compile" depends="init" description="compile the source">
+    <!-- Compile the java -->
+    <javac srcdir="${src}" destdir="${build}" includeantruntime="false">
+      <classpath>
+        <pathelement path="${build}"/>
+        <fileset dir="${lib}">
+          <include name="**/*.jar"/>
+        </fileset>
+      </classpath>
+      <compilerarg value="-Xlint:unchecked"/> 
+    </javac>
+  </target>
+  
+  <target name="dist" depends="compile" description="generate jar">
+    <!-- Create jar -->
+    <jar jarfile="${bin}/${jarName}" filesonly="true">
+      <fileset dir="${build}">
+        <exclude name="tests/**/*Test*.class"/>
+      </fileset>
+    </jar>
+  </target>
+
+  <target name="clean" description="clean up">
+    <!-- Clean-->
+    <delete dir="${build}"/>
+    <delete dir="${apidoc}"/>
+    <delete dir="${reports}"/>
+    <delete dir="${dist}"/>
+    <delete file="${bin}/${jarName}"/>
+  </target>
+  
+  <target name="doc" depends="compile" description="generates javadoc and class diagrams">
+    <!-- Generate doc with class diagrams-->
+    <!-- dot from graphviz is required for building class diagrams -->
+    <javadoc destdir="${apidoc}" extdirs="${lib}" author="true" version="true" use="true" windowtitle="${projectName}">
+      <fileset dir="${src}" defaultexcludes="yes">
+        <include name="**/*.java"/>
+        <exclude name="**/*Test*.java"/>
+      </fileset>
+      <fileset dir="${lib}">
+        <exclude name="**/*.jar"/>
+      </fileset>
+      <tag name="todo" scope="all" description="To do:" enabled="true"/>
+      <tag name="fixme" scope="all" description="Fix me:" enabled="true"/>
+      <doctitle><![CDATA[<h1>Gossip Learning</h1>]]></doctitle>
+      <bottom><![CDATA[<i>Copyright &#169; 2011 Robert Ormandi, Szeged. All Rights Reserved.</i>]]></bottom>
+      <doclet name="org.umlgraph.doclet.UmlGraphDoc" path="${lib}/build/UmlGraph-5.4.jar">
+        <param name="-inferrel" />
+        <param name="-attributes" />
+        <param name="-operations" />
+        <param name="-qualify" />
+        <param name="-types" />
+        <param name="-visibility" />
+      </doclet>
+    </javadoc>
+  </target> 
+  
+  <target name="remoteRun" depends="dist">
+    <!-- Remote run -->
+    <!-- For running this target you have to have an installed version of jsch-0.1.44.jar in your $HOME/.ant/lib directory -->
+    <!-- <taskdef name="scp" classname="org.apache.tools.ant.taskdefs.optional.ssh.Scp" classpath="${lib}/build/jsch-0.1.44.jar;${lib}/build/ant-jsch-1.8.2.jar"/>-->
+    <scp file="${bin}/${jarName}" todir="${env.USER}@${remoteRunHost}:${remoteRunDir}" keyfile="${sshKeyFile}"/>
+    <!--<taskdef name="sshexec" classname="org.apache.tools.ant.taskdefs.optional.ssh.SSHExec" classpath="${lib}/build/jsch-0.1.44.jar;${lib}/build/ant-jsch-1.8.2.jar"/>-->
+    <sshexec host="${remoteRunHost}" username="${env.USER}" keyfile="${sshKeyFile}" command="cd ${remoteRunDir} &amp;&amp; ./${remoteRunScript}"/>
+  </target>
+  
+  <target name="package" depends="doc,test,dist" description="create package">
+    <!-- Create package -->
+    <mkdir dir="${dist}"/>
+    <mkdir dir="${dist}/bin"/>
+    <copy todir="${dist}/bin">
+      <fileset dir="${bin}"/>
+    </copy>
+    <mkdir dir="${dist}/lib"/>
+    <copy todir="${dist}/lib">
+      <fileset dir="${lib}">
+        <exclude name="build/"/>
+      </fileset>
+    </copy>
+    <mkdir dir="${dist}/res"/>
+    <copy todir="${dist}/res">
+      <fileset dir="${res}"/>
+    </copy>
+    <mkdir dir="${dist}/doc"/>
+    <copy todir="${dist}/doc">
+      <fileset dir="${doc}"/>
+    </copy>
+    <mkdir dir="${dist}/doc/api"/>
+    <copy todir="${dist}/doc/api">
+      <fileset dir="${apidoc}"/>
+    </copy>
+    <copy file="README" todir="${dist}"/>
+    <tstamp>
+      <format property="packageTime" pattern="hh.mm_dd-MM-yyyy"/>
+    </tstamp>
+    <tar tarfile="${dist}/${projectName}.tar" basedir="${dist}"/>
+    <gzip zipfile="${projectName}-${packageTime}.tar.gz" src="${dist}/${projectName}.tar"/>
+    <delete dir="${dist}"/>
+  </target>
+  
+  <target name ="test" depends="compile">
+    <!--Run JUnit tests and write a report -->
+    <junit printsummary="yes" haltonfailure="no" showoutput="yes" >
+      <classpath>
+        <pathelement path="${build}"/>
+        <fileset dir="lib">
+          <include name="**/*.jar"/>
+        </fileset>
+      </classpath>
+      
+      <batchtest fork="yes" todir="${reports}/raw/">
+        <formatter type="xml"/>
+        <fileset dir="${src}">
+          <include name="**/*Test*.java"/>
+        </fileset>
+      </batchtest>
+    </junit>
+    
+    <junitreport todir="${reports}">
+      <fileset dir="${reports}/raw/">
+        <include name="TEST-*.xml"/>
+      </fileset>
+      <report format="frames" todir="${reports}/html/"/>
+    </junitreport>
+    
+    <junit printsummary="no" haltonfailure="yes" showoutput="no" >
+      <classpath>
+        <pathelement path="${build}"/>
+        <fileset dir="lib">
+          <include name="**/*.jar"/>
+        </fileset>
+      </classpath>
+      
+      <batchtest fork="yes" todir="${reports}/raw/">
+        <formatter type="xml"/>
+        <fileset dir="${src}">
+          <include name="**/*Test*.java"/>
+        </fileset>
+      </batchtest>
+    </junit>
+  </target>
+  
+</project>
+
+
