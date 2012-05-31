@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export iter=100
+export iter=500
 
 export algorithm=$1
 export config_template=$2
